@@ -1,4 +1,25 @@
 # TensoRF
+### This code is based on a research project located [here](https://apchenstu.github.io/TensoRF/) with the readme included below.
+A single threaded worker that runs this project consuming jobs from RabbitMQ and submitting it back to a seperate completed job queue is located at `worker.py`. This worker loads the config file at `configs/workerconfig.txt` that defines the settings TensoRF should be run at to process each job. Right now the config is static but in the future these settings can be modified based on the job.
+
+The worker consumes jobs from RabbitMQ described via a json template that contains the following:
+```
+{
+ "id": String,
+	"vid_width": int,
+	"vid_height": int,
+	"intrinsic_matrix": float[[]]
+ "frames": [
+ {
+   "file_path": String
+   "extrinsic_matrix": float[[]]
+ }, 
+ ...]
+ }
+ ```
+
+Once the worker is done generating the trained NeRF and rendering the desired video it submits a complete forum to RabbitMQ also in the json format that contains the following:
+
 ## [Project page](https://apchenstu.github.io/TensoRF/) |  [Paper](https://arxiv.org/abs/2203.09517)
 This repository contains a pytorch implementation for the paper: [TensoRF: Tensorial Radiance Fields](https://arxiv.org/abs/2203.09517). Our work present a novel approach to model and reconstruct radiance fields, which achieves super
 **fast** training process, **compact** memory footprint and **state-of-the-art** rendering quality.<br><br>
