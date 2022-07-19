@@ -5,20 +5,29 @@ A single threaded worker that runs this project consuming jobs from RabbitMQ and
 The worker consumes jobs from RabbitMQ described via a json template that contains the following:
 ```
 {
- "id": String,
+ 	"id": String,
 	"vid_width": int,
 	"vid_height": int,
-	"intrinsic_matrix": float[[]]
+	"trained_model_file": String(optional),
+	"intrinsic_matrix": float[[]],
  "frames": [
  {
    "file_path": String
    "extrinsic_matrix": float[[]]
  }, 
- ...]
+ ...
+ ]
  }
  ```
 
 Once the worker is done generating the trained NeRF and rendering the desired video it submits a complete forum to RabbitMQ also in the json format that contains the following:
+```
+{
+	"id": String,
+	"model_file": String,
+	"video_file": String
+}
+```
 
 ## [Project page](https://apchenstu.github.io/TensoRF/) |  [Paper](https://arxiv.org/abs/2203.09517)
 This repository contains a pytorch implementation for the paper: [TensoRF: Tensorial Radiance Fields](https://arxiv.org/abs/2203.09517). Our work present a novel approach to model and reconstruct radiance fields, which achieves super
