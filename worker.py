@@ -255,8 +255,14 @@ def train_tensorf(args):
     return logfolder, tensorf
 
 
-
+from fileServer  import start_flask
+from multiprocessing import Process
+import threading
+import time
 def main():
+    flaskProcess = threading.Thread(target=start_flask, args= ())
+    flaskProcess.start()
+    time.sleep(5)
     # wait for que and load images into local directory
     torch.set_default_dtype(torch.float32)
     torch.manual_seed(20211202)
@@ -277,6 +283,8 @@ def main():
 
     
     # add results to que and clean up local files
+
+    flaskProcess.join()
 
 
 

@@ -24,18 +24,18 @@ def dummy_nerf():
         print()
         count+=1
 
-def start_nerf():
+def start_flask():
     global app
     app.run(debug=True)
 
 # Demonstrating how files will be pulled from the cache
-if __name__ == "__main__":
-    flaskProcess = Process(target=start_nerf, args= ())
+"""if __name__ == "__main__":
+    flaskProcess = Process(target=start_flask, args= ())
     nerfProcess = Process(target=dummy_nerf, args= ())
 
     flaskProcess.start()
     nerfProcess.start()
 
     flaskProcess.join()
-    nerfProcess.join()
+    nerfProcess.join()"""
 
