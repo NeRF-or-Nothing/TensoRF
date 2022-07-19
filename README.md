@@ -5,18 +5,18 @@ A single threaded worker that runs this project consuming jobs from RabbitMQ and
 The worker consumes jobs from RabbitMQ described via a json template that contains the following:
 ```
 {
- 	"id": String,
+	"id": String,
 	"vid_width": int,
 	"vid_height": int,
 	"trained_model_file": String(optional),
 	"intrinsic_matrix": float[[]],
- "frames": [
- {
-   "file_path": String
-   "extrinsic_matrix": float[[]]
- }, 
- ...
- ]
+	 "frames": [
+		 {
+		   "file_path": String
+		   "extrinsic_matrix": float[[]]
+		 }, 
+		...
+		  ]
  }
  ```
 
