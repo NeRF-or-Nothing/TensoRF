@@ -47,19 +47,19 @@ def export_mesh(args):
 def render_novel_view(args, logfolder, tensorf_model):
     # init dataset under a "test" annotation
     dataset = dataset_dict[args.dataset_name]
-    test_dataset = dataset(args.datadir, split='test', downsample=args.downsample_train, is_stack=True)
+    test_dataset = dataset(args.datadir, split='render', downsample=args.downsample_train, is_stack=True)
     white_bg = test_dataset.white_bg
     ndc_ray = args.ndc_ray
 
 
+    print("Rendering scene to be saved at: ",logfolder)
     # render path and save images to imgs_path_all
-    c2ws = test_dataset.render_path
-    os.makedirs(f'{logfolder}/{args.expname}/imgs_path_all', exist_ok=True)
-    evaluation_path(test_dataset,tensorf_model, c2ws, renderer, f'{logfolder}/{args.expname}/imgs_path_all/',
-                                N_vis=-1, N_samples=-1, white_bg = white_bg, ndc_ray=ndc_ray,device=device)
+    os.makedirs(f'{logfolder}/imgs_render_all', exist_ok=True)
+    evaluation(test_dataset,tensorf_model, args, renderer, f'{logfolder}/imgs_render_all/',
+                            N_vis=-1, N_samples=-1, white_bg = white_bg, ndc_ray=ndc_ray,device=device)
 
     # video saved to {logfolder}/{args.expname}/imgs_path_all/video.mp4
-    return f'{logfolder}/{args.expname}/imgs_path_all/video.mp4'
+    return f'{logfolder}/imgs_path_all/video.mp4'
 
 # Build radiance Field
 def train_tensorf(args):
@@ -259,10 +259,12 @@ from fileServer  import start_flask
 from multiprocessing import Process
 import threading
 import time
+# Operates in two modes, trains a new model or loads from a file
 def main():
-    flaskProcess = threading.Thread(target=start_flask, args= ())
-    flaskProcess.start()
-    time.sleep(5)
+    #flaskProcess = threading.Thread(target=start_flask, args= ())
+    #flaskProcess.start()
+    #time.sleep(5)
+
     # wait for que and load images into local directory
     torch.set_default_dtype(torch.float32)
     torch.manual_seed(20211202)
@@ -273,18 +275,32 @@ def main():
     args = config_parser()
     print(args)
 
-    # train TensoRF on all input data and saves model to file
-    # (in the future train on part, test to confirm performance, then train on test set)
-    logfolder, tensorf_model = train_tensorf(args)
+
+    if args.render_only:
+        if not os.path.exists(args.ckpt):
+            print('the ckpt path does not exists!!')
+            return
+
+        ckpt = torch.load(args.ckpt, map_location=device)
+        kwargs = ckpt['kwargs']
+        kwargs.update({'device': device})
+        tensorf_model = eval(args.model_name)(**kwargs)
+        tensorf_model.load(ckpt)
+        logfolder = os.path.dirname(args.ckpt)
+    else:
+        # train TensoRF on all input data and saves model to file
+        # (in the future train on part, test to confirm performance, then train on test set)
+        logfolder, tensorf_model = train_tensorf(args)
+
 
     # Render new video (can be combined with train)
     # Currently evaluation_path takes in a dataset object that has desired rays to render
     video_filepath = render_novel_view(args, logfolder, tensorf_model)
 
-    
+    print(f"Video rendered at :{video_filepath}")
     # add results to que and clean up local files
 
-    flaskProcess.join()
+    #flaskProcess.join()
 
 
 
