@@ -1,10 +1,10 @@
 
 dataset_name = blender
-datadir = ./data/nerf_synthetic/lego
+datadir = ./data/nerf_synthetic/drums
 expname =  tensorf_lego_VM
 basedir = ./log
 
-n_iters = 3000
+n_iters = 30000
 batch_size = 4096
 
 N_voxel_init = 2097156 # 128**3

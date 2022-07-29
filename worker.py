@@ -1,4 +1,4 @@
-
+# Based on train.py
 import datetime
 import os
 import json, random
@@ -14,7 +14,6 @@ from dataLoader import dataset_dict
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 renderer = OctreeRender_trilinear_fast
-
 
 class SimpleSampler:
     def __init__(self, total, batch):
@@ -45,48 +44,29 @@ def export_mesh(args):
 
 
 @torch.no_grad()
-def render_test(args):
-    # init dataset
+def render_novel_view(args, logfolder, tensorf_model):
+    # init dataset under a "test" annotation
     dataset = dataset_dict[args.dataset_name]
-    test_dataset = dataset(args.datadir, split='test', downsample=args.downsample_train, is_stack=True)
+    test_dataset = dataset(args.datadir, split='render', downsample=args.downsample_train, is_stack=True)
     white_bg = test_dataset.white_bg
     ndc_ray = args.ndc_ray
 
-    if not os.path.exists(args.ckpt):
-        print('the ckpt path does not exists!!')
-        return
 
-    ckpt = torch.load(args.ckpt, map_location=device)
-    kwargs = ckpt['kwargs']
-    kwargs.update({'device': device})
-    tensorf = eval(args.model_name)(**kwargs)
-    tensorf.load(ckpt)
+    print("Rendering scene to be saved at: ",logfolder)
+    # render path and save images to imgs_path_all
+    os.makedirs(f'{logfolder}/imgs_render_all', exist_ok=True)
+    evaluation(test_dataset,tensorf_model, args, renderer, f'{logfolder}/imgs_render_all/',
+                            N_vis=-1, N_samples=-1, white_bg = white_bg, ndc_ray=ndc_ray,device=device)
 
-    logfolder = os.path.dirname(args.ckpt)
-    if args.render_train:
-        os.makedirs(f'{logfolder}/imgs_train_all', exist_ok=True)
-        train_dataset = dataset(args.datadir, split='train', downsample=args.downsample_train, is_stack=True)
-        PSNRs_test = evaluation(train_dataset,tensorf, args, renderer, f'{logfolder}/imgs_train_all/',
-                                N_vis=-1, N_samples=-1, white_bg = white_bg, ndc_ray=ndc_ray,device=device)
-        print(f'======> {args.expname} train all psnr: {np.mean(PSNRs_test)} <========================')
+    # video saved to {logfolder}/{args.expname}/imgs_path_all/video.mp4
+    return f'{logfolder}/imgs_path_all/video.mp4'
 
-    if args.render_test:
-        os.makedirs(f'{logfolder}/{args.expname}/imgs_test_all', exist_ok=True)
-        evaluation(test_dataset,tensorf, args, renderer, f'{logfolder}/{args.expname}/imgs_test_all/',
-                                N_vis=-1, N_samples=-1, white_bg = white_bg, ndc_ray=ndc_ray,device=device)
-
-    if args.render_path:
-        c2ws = test_dataset.render_path
-        os.makedirs(f'{logfolder}/{args.expname}/imgs_path_all', exist_ok=True)
-        evaluation_path(test_dataset,tensorf, c2ws, renderer, f'{logfolder}/{args.expname}/imgs_path_all/',
-                                N_vis=-1, N_samples=-1, white_bg = white_bg, ndc_ray=ndc_ray,device=device)
-
-def reconstruction(args):
+# Build radiance Field
+def train_tensorf(args):
 
     # init dataset
     dataset = dataset_dict[args.dataset_name]
     train_dataset = dataset(args.datadir, split='train', downsample=args.downsample_train, is_stack=False)
-    test_dataset = dataset(args.datadir, split='test', downsample=args.downsample_train, is_stack=True)
     white_bg = train_dataset.white_bg
     near_far = train_dataset.near_far
     ndc_ray = args.ndc_ray
@@ -119,7 +99,7 @@ def reconstruction(args):
     reso_cur = N_to_reso(args.N_voxel_init, aabb)
     nSamples = min(args.nSamples, cal_n_samples(reso_cur,args.step_ratio))
 
-
+    # Load model checkpoint
     if args.ckpt is not None:
         ckpt = torch.load(args.ckpt, map_location=device)
         kwargs = ckpt['kwargs']
@@ -133,6 +113,7 @@ def reconstruction(args):
                     pos_pe=args.pos_pe, view_pe=args.view_pe, fea_pe=args.fea_pe, featureC=args.featureC, step_ratio=args.step_ratio, fea2denseAct=args.fea2denseAct)
 
 
+    # learning rate for Adam optimizer
     grad_vars = tensorf.get_optparam_groups(args.lr_init, args.lr_basis)
     if args.lr_decay_iters > 0:
         lr_factor = args.lr_decay_target_ratio**(1/args.lr_decay_iters)
@@ -142,10 +123,12 @@ def reconstruction(args):
 
     print("lr decay", args.lr_decay_target_ratio, args.lr_decay_iters)
     
+    # modifying the optimizer is a potential avenue for further performance gains
     optimizer = torch.optim.Adam(grad_vars, betas=(0.9,0.99))
 
 
     #linear in logrithmic space
+    # Defines the number of voxels to up-scale to  iteratively throughout training
     N_voxel_list = (torch.round(torch.exp(torch.linspace(np.log(args.N_voxel_init), np.log(args.N_voxel_final), len(upsamp_list)+1))).long()).tolist()[1:]
 
 
@@ -200,7 +183,7 @@ def reconstruction(args):
             summary_writer.add_scalar('train/reg_tv_density', loss_tv.detach().item(), global_step=iteration)
         if TV_weight_app>0:
             TV_weight_app *= lr_factor
-            loss_tv = tensorf.TV_loss_app(tvreg)*TV_weight_app
+            loss_tv = loss_tv + tensorf.TV_loss_app(tvreg)*TV_weight_app
             total_loss = total_loss + loss_tv
             summary_writer.add_scalar('train/reg_tv_app', loss_tv.detach().item(), global_step=iteration)
 
@@ -232,13 +215,7 @@ def reconstruction(args):
             PSNRs = []
 
 
-        if iteration % args.vis_every == args.vis_every - 1 and args.N_vis!=0:
-            PSNRs_test = evaluation(test_dataset,tensorf, args, renderer, f'{logfolder}/imgs_vis/', N_vis=args.N_vis,
-                                    prtx=f'{iteration:06d}_', N_samples=nSamples, white_bg = white_bg, ndc_ray=ndc_ray, compute_extra_metrics=False)
-            summary_writer.add_scalar('test/psnr', np.mean(PSNRs_test), global_step=iteration)
-
-
-        # Every few thousand  iterations mask voxel representation to lower memory consumption
+        # Every few thousand iterations mask voxel representation to lower memory consumption
         if iteration in update_AlphaMask_list:
 
             if reso_cur[0] * reso_cur[1] * reso_cur[2]<256**3:# update volume resolution
@@ -273,46 +250,60 @@ def reconstruction(args):
             optimizer = torch.optim.Adam(grad_vars, betas=(0.9, 0.99))
         
 
+    # save model to file
     tensorf.save(f'{logfolder}/{args.expname}.th')
+    return logfolder, tensorf
 
 
-    if args.render_train:
-        os.makedirs(f'{logfolder}/imgs_train_all', exist_ok=True)
-        train_dataset = dataset(args.datadir, split='train', downsample=args.downsample_train, is_stack=True)
-        PSNRs_test = evaluation(train_dataset,tensorf, args, renderer, f'{logfolder}/imgs_train_all/',
-                                N_vis=-1, N_samples=-1, white_bg = white_bg, ndc_ray=ndc_ray,device=device)
-        print(f'======> {args.expname} test all psnr: {np.mean(PSNRs_test)} <========================')
+from fileServer  import start_flask
+from multiprocessing import Process
+import threading
+import time
+# Operates in two modes, trains a new model or loads from a file
+def main():
+    #flaskProcess = threading.Thread(target=start_flask, args= ())
+    #flaskProcess.start()
+    #time.sleep(5)
 
-    if args.render_test:
-        os.makedirs(f'{logfolder}/imgs_test_all', exist_ok=True)
-        PSNRs_test = evaluation(test_dataset,tensorf, args, renderer, f'{logfolder}/imgs_test_all/',
-                                N_vis=-1, N_samples=-1, white_bg = white_bg, ndc_ray=ndc_ray,device=device)
-        summary_writer.add_scalar('test/psnr_all', np.mean(PSNRs_test), global_step=iteration)
-        print(f'======> {args.expname} test all psnr: {np.mean(PSNRs_test)} <========================')
-
-    if args.render_path:
-        c2ws = test_dataset.render_path
-        # c2ws = test_dataset.poses
-        print('========>',c2ws.shape)
-        os.makedirs(f'{logfolder}/imgs_path_all', exist_ok=True)
-        evaluation_path(test_dataset,tensorf, c2ws, renderer, f'{logfolder}/imgs_path_all/',
-                                N_vis=-1, N_samples=-1, white_bg = white_bg, ndc_ray=ndc_ray,device=device)
-
-
-if __name__ == '__main__':
-
+    # wait for que and load images into local directory
     torch.set_default_dtype(torch.float32)
     torch.manual_seed(20211202)
     np.random.seed(20211202)
+    # format images and training and test json
 
+    # load worker config
     args = config_parser()
     print(args)
 
-    if  args.export_mesh:
-        export_mesh(args)
 
-    if args.render_only and (args.render_test or args.render_path):
-        render_test(args)
+    if args.render_only:
+        if not os.path.exists(args.ckpt):
+            print('the ckpt path does not exists!!')
+            return
+
+        ckpt = torch.load(args.ckpt, map_location=device)
+        kwargs = ckpt['kwargs']
+        kwargs.update({'device': device})
+        tensorf_model = eval(args.model_name)(**kwargs)
+        tensorf_model.load(ckpt)
+        logfolder = os.path.dirname(args.ckpt)
     else:
-        reconstruction(args)
+        # train TensoRF on all input data and saves model to file
+        # (in the future train on part, test to confirm performance, then train on test set)
+        logfolder, tensorf_model = train_tensorf(args)
 
+
+    # Render new video (can be combined with train)
+    # Currently evaluation_path takes in a dataset object that has desired rays to render
+    video_filepath = render_novel_view(args, logfolder, tensorf_model)
+
+    print(f"Video rendered at :{video_filepath}")
+    # add results to que and clean up local files
+
+    #flaskProcess.join()
+
+
+
+
+if __name__ == '__main__':
+    main()
