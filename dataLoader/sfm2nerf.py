@@ -71,9 +71,10 @@ class Sfm2Nerf(Dataset):
         #w, h = int(800/self.downsample), int(800/self.downsample)
         w, h = int(self.meta['vid_width']/self.downsample), int(self.meta['vid_height']/self.downsample)
         self.img_wh = [w,h]
-        self.focal_x = 0.5 * w / np.tan(0.5 * self.meta['intrinsic_matrix'][0][0])  # original focal length
-        self.focal_y = 0.5 * h / np.tan(0.5 * self.meta['intrinsic_matrix'][1][1])  # original focal length
-        
+        #self.focal_x = 0.5 * w / np.tan(0.5 * self.meta['intrinsic_matrix'][0][0])  # original focal length
+        #self.focal_y = 0.5 * h / np.tan(0.5 * self.meta['intrinsic_matrix'][1][1])  # original focal length
+        self.focal_x = float(self.meta['intrinsic_matrix'][0][0])
+        self.focal_y = float(self.meta['intrinsic_matrix'][1][1])
         self.cx, self.cy = self.meta['intrinsic_matrix'][0][2],self.meta['intrinsic_matrix'][1][2]
 
 
@@ -102,7 +103,7 @@ class Sfm2Nerf(Dataset):
             self.poses += [c2w]
 
             if self.split != 'render':
-                image_path = os.path.join(self.root_dir, f"{frame['file_path']}.png")
+                image_path = os.path.join(self.root_dir, f"{frame['file_path']}")
                 self.image_paths += [image_path]
                 img = Image.open(image_path)
         
