@@ -31,7 +31,7 @@ Once the worker is done generating the trained NeRF and rendering the desired vi
 # Usage of Local Worker
 Here are some basic instructions on how to use the worker.py in local mode:
 ### Running worker.py
-To run worker.py to train a new TensoRF and render a new video use the command: `python worker.py --config configs/localworkerconfig.txt`. 
+To run worker.py, to train a new TensoRF, and to render a new video use the command: `python worker.py --config configs/localworkerconfig.txt`. 
 
 If you only want to render a new video from a TensoRF model that has already been trained use the command:
 `python worker.py --config configs/localworkerconfig.txt --ckpt [PATH TO TENSORF MODEL] --render_only 1` 
