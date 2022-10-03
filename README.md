@@ -28,6 +28,7 @@ Once the worker is done generating the trained NeRF and rendering the desired vi
 	"video_file": String
 }
 ```
+
 # Usage of Local Worker
 Here are some basic instructions on how to use the worker.py in local mode:
 ### Running worker.py
@@ -49,6 +50,7 @@ Example input file structure:
 The worker outputs final results to `log/tensorf_sfm_data_VM`.
 
 Within this folder the only relevate outputs for the worker are the rendered images and final video in the `imgs_render_all` folder and the trained TensoRF model that is saved at `tensorf_sfm_data.th`. This trained model can be reused by the worker using the checkpoint `--ckpt` flag.
+
 
 ## [Project page](https://apchenstu.github.io/TensoRF/) |  [Paper](https://arxiv.org/abs/2203.09517)
 This repository contains a pytorch implementation for the paper: [TensoRF: Tensorial Radiance Fields](https://arxiv.org/abs/2203.09517). Our work present a novel approach to model and reconstruct radiance fields, which achieves super
