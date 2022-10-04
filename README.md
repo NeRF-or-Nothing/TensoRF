@@ -29,6 +29,29 @@ Once the worker is done generating the trained NeRF and rendering the desired vi
 }
 ```
 
+# Usage of Local Worker
+Here are some basic instructions on how to use the worker.py in local mode:
+### Running worker.py
+To run worker.py to train a new TensoRF and render a new video use the command: `python worker.py --config configs/localworkerconfig.txt`. 
+
+If you only want to render a new video from a TensoRF model that has already been trained use the command:
+`python worker.py --config configs/localworkerconfig.txt --ckpt [PATH TO TENSORF MODEL] --render_only 1` 
+This will load a model from the specified path and use it to render the camera motion specified in the `transforms_render.json` input file.
+
+Example for render only: `python worker.py --config configs/localworkerconfig.txt --ckpt log/tensorf_sfm_data_VM/tensorf_sfm_data_VM.th --render_only 1`
+### Input data
+The worker takes input from `data/sfm_data/`. Within this folder you should provide a json file named `transforms_train.json` which will contain the transformation data from structure from motion along with a subfolder labeled `train` that will contain all of the image files referenced in `transforms_train.json`. This will provide the worker with all the data it needs to train a TensoRF. Then once the TensoRF model is trained the worker will load the final file from the input data `transforms_render.json` which contains the desired camera path to be rendered in the same format as the training json (template above)
+
+Example input file structure:
+
+![Screenshot_20220729_065836](https://user-images.githubusercontent.com/49171429/181745902-920d5483-28e6-4412-bc07-9c770544057f.png)
+
+### Output data
+The worker outputs final results to `log/tensorf_sfm_data_VM`.
+
+Within this folder the only relevate outputs for the worker are the rendered images and final video in the `imgs_render_all` folder and the trained TensoRF model that is saved at `tensorf_sfm_data.th`. This trained model can be reused by the worker using the checkpoint `--ckpt` flag.
+
+
 ## [Project page](https://apchenstu.github.io/TensoRF/) |  [Paper](https://arxiv.org/abs/2203.09517)
 This repository contains a pytorch implementation for the paper: [TensoRF: Tensorial Radiance Fields](https://arxiv.org/abs/2203.09517). Our work present a novel approach to model and reconstruct radiance fields, which achieves super
 **fast** training process, **compact** memory footprint and **state-of-the-art** rendering quality.<br><br>
