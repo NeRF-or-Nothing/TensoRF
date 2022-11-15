@@ -1,8 +1,8 @@
 
-dataset_name = own_data
-datadir = ./data/xxx
-expname =  tensorf_xxx_VM
-basedir = ./log
+dataset_name = workerData
+datadir = ./data/inputs
+expname = out
+basedir = ./data/outputs
 
 n_iters = 30000
 batch_size = 4096

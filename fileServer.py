@@ -6,6 +6,7 @@ import os
 
 
 app = Flask(__name__)
+base_url = "http://nerf-worker:5100/"
 
 @app.route('/output/videos/<path:path>')
 def send_video(path):
@@ -26,7 +27,7 @@ def dummy_nerf():
 
 def start_flask():
     global app
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5200, debug=True)
 
 # Demonstrating how files will be pulled from the cache
 """if __name__ == "__main__":

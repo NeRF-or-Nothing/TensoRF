@@ -3,13 +3,20 @@ import datetime
 import os
 import json, random
 import sys
+import threading
+import time
+import pika
 
+from pathlib import Path
 from tqdm.auto import tqdm
 from opt import config_parser
 from renderer import *
 from utils import *
 from torch.utils.tensorboard import SummaryWriter
 from dataLoader import dataset_dict
+from fileServer  import start_flask
+from multiprocessing import Process
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -255,12 +262,9 @@ def train_tensorf(args):
     return logfolder, tensorf
 
 
-from fileServer  import start_flask
-from multiprocessing import Process
-import threading
-import time
+
 # Operates in two modes, trains a new model or loads from a file
-def main():
+def local_worker():
     #flaskProcess = threading.Thread(target=start_flask, args= ())
     #flaskProcess.start()
     #time.sleep(5)
@@ -304,6 +308,49 @@ def main():
 
 
 
+def run_full_nerf_pipeline(args):
+    logfolder, tensorf_model = train_tensorf(args)
+
+    video_filepath = render_novel_view(args, logfolder, tensorf_model)
+
+    print(f"Video rendered at :{video_filepath}")
+
+    return video_filepath
+
+
+def nerf_worker():
+    args = config_parser()
+    rabbitmq_domain = "rabbitmq"
+    credentials = pika.PlainCredentials('admin', 'password123')
+    parameters = pika.ConnectionParameters(rabbitmq_domain, 5672, '/', credentials,heartbeat=300)
+
+    connection = pika.BlockingConnection(parameters)
+    channel = connection.channel()
+    channel.queue_declare(queue='nerf-in')
+    channel.queue_declare(queue='nerf-out')
+    input_data_dir = "data/inputs/"
+    output_data_dir = "data/outputs/"
+    Path(f"{input_data_dir}").mkdir(parents=True, exist_ok=True)
+    Path(f"{output_data_dir}").mkdir(parents=True, exist_ok=True)
+
+    def process_nerf_job(ch, method, properties, body):
+        print("Starting New Job")
+        print(body.decode())
+        job_data = json.loads(body.decode())
+        id = job_data["id"]
+        print(f"Received New Job With ID: {id}")
+
+    channel.basic_qos(prefetch_count=1)
+    channel.basic_consume(queue='nerf-in', on_message_callback=process_nerf_job)
+    channel.start_consuming()
+    print("ERROR: rabbitmq client failed")
+
+
 
 if __name__ == '__main__':
-    main()
+    flaskProcess = Process(target=start_flask, args= ())
+    nerfProcess = Process(target=nerf_worker, args= ())
+    flaskProcess.start()
+    nerfProcess.start()
+    flaskProcess.join()
+    nerfProcess.join()
