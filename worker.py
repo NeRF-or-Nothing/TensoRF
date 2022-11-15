@@ -6,6 +6,7 @@ import sys
 import threading
 import time
 import pika
+import requests
 
 from pathlib import Path
 from tqdm.auto import tqdm
@@ -16,6 +17,7 @@ from torch.utils.tensorboard import SummaryWriter
 from dataLoader import dataset_dict
 from fileServer  import start_flask
 from multiprocessing import Process
+from urllib.parse import urlparse
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -336,9 +338,47 @@ def nerf_worker():
     def process_nerf_job(ch, method, properties, body):
         print("Starting New Job")
         print(body.decode())
-        job_data = json.loads(body.decode())
-        id = job_data["id"]
+        nerf_data = json.loads(body.decode())
+        id = nerf_data["id"]
         print(f"Received New Job With ID: {id}")
+
+        #convert each url to filepath
+        #store png 
+        for i,fr_ in enumerate(nerf_data['frames']):
+            # TODO: This code trusts the file extensions from the worker
+            # TODO: handle files not found
+            url = fr_['file_path']
+            img = requests.get(url)
+            url_path = urlparse(fr_['file_path']).path
+            filename = url_path.split("/")[-1]
+            file_path =  "data/inputs/workerData" + id 
+            os.makedirs(file_path, exist_ok=True) 
+            file_path += "/" + filename
+            open(file_path,"wb").write(img.content)
+
+            path = os.path.join(os.getcwd(), file_path)
+            nerf_data['frames'][i]["file_path"] = file_path
+
+        with open("transforms_data.json", "w") as f:
+            json.dumps(nerf_data, f)
+
+        # Process received job
+        video_file = run_full_nerf_pipeline(args)
+        
+        video_url = to_url(video_file)
+        nerf_output_data = {"video": video_url}
+
+        json_nerf_output = json.dumps(nerf_output_data)
+        channel.basic_publish(exchange='', routing_key='nerf-out', body=json_nerf_output)
+
+        # confirm to rabbitmq job is done
+        ch.basic_ack(delivery_tag=method.delivery_tag)
+        print("Job complete")
+
+
+
+
+
 
     channel.basic_qos(prefetch_count=1)
     channel.basic_consume(queue='nerf-in', on_message_callback=process_nerf_job)
