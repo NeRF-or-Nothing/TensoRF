@@ -51,12 +51,20 @@ def render_novel_view(args, logfolder, tensorf_model):
     white_bg = test_dataset.white_bg
     ndc_ray = args.ndc_ray
 
+    tensorf_model.aabb = test_dataset.scene_bbox.to(device)
+
 
     print("Rendering scene to be saved at: ",logfolder)
     # render path and save images to imgs_path_all
-    os.makedirs(f'{logfolder}/imgs_render_all', exist_ok=True)
-    evaluation(test_dataset,tensorf_model, args, renderer, f'{logfolder}/imgs_render_all/',
-                            N_vis=-1, N_samples=-1, white_bg = white_bg, ndc_ray=ndc_ray,device=device)
+    if args.render_path:
+        c2ws = test_dataset.render_path
+        os.makedirs(f'{logfolder}/{args.expname}/imgs_path_all', exist_ok=True)
+        evaluation_path(test_dataset,tensorf_model, c2ws, renderer, f'{logfolder}/{args.expname}/imgs_path_all/',
+                                N_vis=-1, N_samples=-1, white_bg = white_bg, ndc_ray=ndc_ray,device=device)
+    else:
+        os.makedirs(f'{logfolder}/imgs_render_all', exist_ok=True)
+        evaluation(test_dataset,tensorf_model, args, renderer, f'{logfolder}/imgs_render_all/',
+                                N_vis=-1, N_samples=-1, white_bg = white_bg, ndc_ray=ndc_ray,device=device)
 
     # video saved to {logfolder}/{args.expname}/imgs_path_all/video.mp4
     return f'{logfolder}/imgs_path_all/video.mp4'

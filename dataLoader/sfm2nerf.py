@@ -46,13 +46,22 @@ class Sfm2Nerf(Dataset):
         self.downsample = downsample
         self.define_transforms()
 
-        self.scene_bbox = torch.tensor([[-1.5, -1.5, -1.5], [1.5, 1.5, 1.5]])
+        if split == "train":
+            self.scene_bbox = torch.tensor([[-1.5, -1.5, -1.5], [1.5, 1.5, 1.5]])
+            self.near_far = [0.1,100.0]
+        else:
+            self.scene_bbox = torch.tensor([[-1.5, -1.5, -1.5], 
+                                            [1.0, 1.0, -0.25]])
+            #self.scene_bbox = torch.tensor([[-1.5, -1.5, -1.5], [1.5, 1.5, 1.5]])
+            #self.near_far = [1.0,1.5]
+            self.near_far = [0.1,100.0]
+
         self.blender2opencv = np.array([[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
         self.read_meta()
         self.define_proj_mat()
 
         self.white_bg = True
-        self.near_far = [0.1,100.0]
+        #self.near_far = [0.1,100.0]
         #self.near_far = [2.0,6.0]
         
         self.center = torch.mean(self.scene_bbox, axis=0).float().view(1, 1, 3)
@@ -83,7 +92,7 @@ class Sfm2Nerf(Dataset):
         self.directions = self.directions / torch.norm(self.directions, dim=-1, keepdim=True)
         self.intrinsics = torch.tensor([[self.focal_x,0,self.cx],[0,self.focal_y,self.cy],[0,0,1]]).float()
 
-        self.render_path = torch.stack([pose_spherical(angle, -30.0, 4.0) for angle in np.linspace(-180,180,40+1)[:-1]], 0)
+        self.render_path = torch.stack([pose_spherical(angle, 25.0, 1) for angle in np.linspace(-180,180,40+1)[:-1]], 0)
 
         self.image_paths = []
         self.poses = []
