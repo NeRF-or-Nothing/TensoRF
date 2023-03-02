@@ -2,6 +2,7 @@ import numpy as np
 import json
 import sys
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 def polar_2_extrinsic(fps = 30, duration = 6, coefs = np.array([[[1, 0], [np.pi/2, 0], [0, 1]], [[0, 0], [0, 0], [0, 0]]])):
     #fps: frames per second
@@ -20,6 +21,8 @@ def polar_2_extrinsic(fps = 30, duration = 6, coefs = np.array([[[1, 0], [np.pi/
         #phi_0: initial azimuthal angle in radians
         #phi_1: change in azimuthal angle in number of complete rotations for given duration
 
+    n = fps*duration
+
     r_c = coefs[0][0]
     theta_c = coefs[0][1]
     phi_c = coefs[0][2]
@@ -35,104 +38,86 @@ def polar_2_extrinsic(fps = 30, duration = 6, coefs = np.array([[[1, 0], [np.pi/
     y = lambda t: r(t)*np.sin(theta(t))*np.sin(phi(t))
     z = lambda t: r(t)*np.cos(theta(t))
 
-    matrices = []
-    t_step = 0
-    for frame in range(0, fps*duration):
+    frame_times = np.linspace(0, 6, fps*duration)
+    x_v = x(frame_times)
+    y_v = y(frame_times)
+    z_v = z(frame_times)
 
-        matrix = np.zeros((3, 4))
-        matrix[0][3] = x(t_step)
-        matrix[1][3] = y(t_step)
-        matrix[2][3] = z(t_step)
+    zeros = np.zeros(fps*duration)
+    ones = np.ones(fps*duration)
 
-        matrices.append(matrix)
-        t_step += 1/fps
-    
-    return np.array(matrices)
+    C = np.array([x_v, y_v, z_v])
+    C = np.moveaxis(C, 0, 1)
 
-class CameraPoseVisualizer:
-    def __init__(self, xlim, ylim, zlim):
-        self.fig = plt.figure(figsize=(18, 7))
-        self.ax = self.fig.add_subplot(projection='3d')
-        self.ax.set_aspect("auto")
-        self.ax.set_xlim(xlim)
-        self.ax.set_ylim(ylim)
-        self.ax.set_zlim(zlim)
-        self.ax.set_xlabel('x')
-        self.ax.set_ylabel('y')
-        self.ax.set_zlabel('z')
+    L = C.copy()
+    L /= np.linalg.norm(L)
 
-        # Create axis
-        axes = [3, 3, 3]
-        
-        # Create Data
-        data = np.ones(axes)
-        print(data.shape)
-        
-        # Control Transparency
-        alpha = 0.01
-        
-        # Control colour
-        colors = np.empty(axes + [4], dtype=np.float32)
-        
-        colors[:] = [1, 0, 0, alpha]  # red
-        x,y,z = np.indices((4,4,4),dtype='float32')
-        x-= 1.5
-        y-= 1.5
-        z-= 1.5
-        self.ax.voxels(x,y,z,data, facecolors=colors, edgecolors='grey')
-        print('initialize camera pose visualizer')
+    u = np.array([zeros, ones, zeros])
+    u = np.moveaxis(u, 0, 1)
 
-    def extrinsic2pyramid(self, extrinsic, color='r', focal_len_scaled=1, aspect_ratio=0.3):
-        vertex_std = np.array([[0, 0, 0, 1],
-                               [focal_len_scaled * aspect_ratio, -focal_len_scaled * aspect_ratio, focal_len_scaled, 1],
-                               [focal_len_scaled * aspect_ratio, focal_len_scaled * aspect_ratio, focal_len_scaled, 1],
-                               [-focal_len_scaled * aspect_ratio, focal_len_scaled * aspect_ratio, focal_len_scaled, 1],
-                               [-focal_len_scaled * aspect_ratio, -focal_len_scaled * aspect_ratio, focal_len_scaled, 1]])
-        vertex_transformed = vertex_std @ extrinsic.T
-        meshes = [[vertex_transformed[0, :-1], vertex_transformed[1][:-1], vertex_transformed[2, :-1]],
-                            [vertex_transformed[0, :-1], vertex_transformed[2, :-1], vertex_transformed[3, :-1]],
-                            [vertex_transformed[0, :-1], vertex_transformed[3, :-1], vertex_transformed[4, :-1]],
-                            [vertex_transformed[0, :-1], vertex_transformed[4, :-1], vertex_transformed[1, :-1]],
-                            [vertex_transformed[1, :-1], vertex_transformed[2, :-1], vertex_transformed[3, :-1], vertex_transformed[4, :-1]]]
-        self.ax.add_collection3d(
-            Poly3DCollection(meshes, facecolors=color, linewidths=0.3, edgecolors=color, alpha=0.15))
+    s = np.cross(L, u)
+    s /= np.linalg.norm(s)
 
-    def customize_legend(self, list_label):
-        list_handle = []
-        for idx, label in enumerate(list_label):
-            color = plt.cm.rainbow(idx / len(list_label))
-            patch = Patch(color=color, label=label)
-            list_handle.append(patch)
-        plt.legend(loc='right', bbox_to_anchor=(1.8, 0.5), handles=list_handle)
+    u = np.cross(s, L)
 
-    def colorbar(self, max_frame_length):
-        cmap = mpl.cm.rainbow
-        norm = mpl.colors.Normalize(vmin=0, vmax=max_frame_length)
-        self.fig.colorbar(mpl.cm.ScalarMappable(norm=norm, cmap=cmap), orientation='vertical', label='Frame Number')
-    
-    def plot_cam(self, cam, color="blue"):
-        self.ax.scatter(cam[0],cam[1],cam[2], color= color)
+    R = np.array([[s[:, 0], s[:, 1], s[:, 2]], 
+                    [u[:, 0], u[:, 1], u[:, 2]], 
+                    [-L[:, 0], -L[:, 1], -L[:, 2]]])
+    R = np.moveaxis(R, 2, 0)
 
+    t = []
+    i = 0
+    for matrix in R:
+        t.append(-matrix @ C[i])
+        i += 1
 
-    def show(self):
-        print("Displaying Data")
-        plt.title('Extrinsic Parameters')
-        plt.show()
+    t = np.array(t)
+
+    matrix = np.array([
+        [s[:, 0], s[:, 1], s[:, 2], t[:, 0]],
+        [u[:, 0], u[:, 1], u[:, 2], t[:, 1]],
+        [-L[:, 0], -L[:, 1], -L[:, 2], t[:, 2]],
+        [zeros, zeros, zeros, ones]
+    ])
+    matrix = np.moveaxis(matrix, 2, 0)
+
+    return matrix, C, R, t
 
 if __name__ == '__main__':
 
-    matrices = polar_2_extrinsic(duration = 6, fps = 30)
+    matrices, C, R, t = polar_2_extrinsic()
 
-    x = []
-    y = []
-    z = []
+    fig = plt.figure(figsize=(10, 10))
+    ax = fig.add_subplot(projection='3d')
+    ax.set_xlim([-1, 1])
+    ax.set_ylim([-1, 1])
+    ax.set_zlim([-1, 1])
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_zlabel('z')
+
+    points = np.moveaxis(C, 0, 1)
+    ax.scatter(0, 0, 0, c = 'black')
+    ax.scatter(points[0], points[1], points[2], c = np.arange(len(points[0])))
+
+    focal_len_scaled=1
+    aspect_ratio=0.3
+
     for matrix in matrices:
-        x.append(matrix[0][3])
-        y.append(matrix[1][3])
-        z.append(matrix[2][3])
 
-    points = np.array([x, y, z])
+        vertex_std = np.array([[0, 0, 0, 1],
+                                [focal_len_scaled * aspect_ratio, -focal_len_scaled * aspect_ratio, focal_len_scaled, 1],
+                                [focal_len_scaled * aspect_ratio, focal_len_scaled * aspect_ratio, focal_len_scaled, 1],
+                                [-focal_len_scaled * aspect_ratio, focal_len_scaled * aspect_ratio, focal_len_scaled, 1],
+                                [-focal_len_scaled * aspect_ratio, -focal_len_scaled * aspect_ratio, focal_len_scaled, 1]])
 
-    bruh = CameraPoseVisualizer(xlim = [-1,1], ylim = [-1,1], zlim = [-1,1])
-    bruh.plot_cam(cam = points)
+        vertex_transformed = vertex_std @ matrix.T
+
+        meshes = [[vertex_transformed[0, :-1], vertex_transformed[1][:-1], vertex_transformed[2, :-1]],
+                                [vertex_transformed[0, :-1], vertex_transformed[2, :-1], vertex_transformed[3, :-1]],
+                                [vertex_transformed[0, :-1], vertex_transformed[3, :-1], vertex_transformed[4, :-1]],
+                                [vertex_transformed[0, :-1], vertex_transformed[4, :-1], vertex_transformed[1, :-1]],
+                                [vertex_transformed[1, :-1], vertex_transformed[2, :-1], vertex_transformed[3, :-1], vertex_transformed[4, :-1]]]
+        ax.add_collection3d(Poly3DCollection(meshes, linewidths=0.3, alpha=0.15))
+
     plt.show()
