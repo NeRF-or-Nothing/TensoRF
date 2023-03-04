@@ -2,6 +2,7 @@ import numpy as np
 import json
 import sys
 import matplotlib.pyplot as plt
+from scipy.special import factorial
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 def polar_2_extrinsic(fps = 30, duration = 6, coefs = np.array([[1, 0], [np.pi/2, 0], [0, 1]])):
@@ -11,45 +12,44 @@ def polar_2_extrinsic(fps = 30, duration = 6, coefs = np.array([[1, 0], [np.pi/2
     #coefs: Matrix A produces translations and has three rows corresponding to r, theta, and phi in polar coordinates. Each column corresponds to the order of the function derivative.
     #All derivatives are normalized relative to duration.
 
-    durations = np.full((coefs.shape[1]), duration)
-    powers = np.arange(0, coefs.shape[1], 1)
-    norm = np.power(duration, powers)
+    l = coefs.shape[1]
+    r_norm = (1/factorial(np.arange(0, l, 1)))*np.power((1/duration), np.arange(0, l, 1))
+    rad_norm = 2*np.pi*(1/factorial(np.arange(0, l, 1)))*np.power((1/duration), np.arange(0, l, 1))
+    rad_norm[0] = 1
 
-    r_c = coefs[0]
-    theta_c = coefs[1]
-    phi_c = coefs[2]
-
-    r = lambda t: r_c[0] + (r_c[1]/duration)*t
-    theta = lambda t: theta_c[0] + (2*np.pi*theta_c[1]/duration)*t
-    phi = lambda t: phi_c[0] + (2*np.pi*phi_c[1]/duration)*t
-
-    frame_times = np.linspace(0, 6, fps*duration)
     zeros = np.zeros(fps*duration)
     ones = np.ones(fps*duration)
-    matrix = np.empty((4, 4, 180))
+    matrix = np.empty((4, 4, fps*duration))
+
+    times = np.full((l, fps*duration), np.linspace(0, duration, fps*duration)).T
+    times = np.power(times, np.arange(0, l, 1))
+
+    r = np.sum(r_norm*coefs[0]*times, axis = 1)
+    theta = np.sum(rad_norm*coefs[1]*times, axis = 1)
+    phi = np.sum(rad_norm*coefs[2]*times, axis = 1)
 
     #Note the extrinsic matrix is inverted relative to standard. It will map from camera to world coordinates.
     #see this link for reference: https://ksimek.github.io/2012/08/22/extrinsic/
 
     #s vector
-    matrix[0][0] = np.sin(phi(frame_times))
-    matrix[1][0] = -np.cos(phi(frame_times))
+    matrix[0][0] = np.sin(phi)
+    matrix[1][0] = -np.cos(phi)
     matrix[2][0] = zeros
 
     #u vector
-    matrix[0][1] = -np.cos(theta(frame_times))*np.cos(phi(frame_times))
-    matrix[1][1] = -np.cos(theta(frame_times))*np.sin(phi(frame_times))
-    matrix[2][1] = np.sin(theta(frame_times))
+    matrix[0][1] = -np.cos(theta)*np.cos(phi)
+    matrix[1][1] = -np.cos(theta)*np.sin(phi)
+    matrix[2][1] = np.sin(theta)
 
     #-L vector
-    matrix[0][2] = -np.sin(theta(frame_times))*np.cos(phi(frame_times))
-    matrix[1][2] = -np.sin(theta(frame_times))*np.sin(phi(frame_times))
-    matrix[2][2] = -np.cos(theta(frame_times))
+    matrix[0][2] = -np.sin(theta)*np.cos(phi)
+    matrix[1][2] = -np.sin(theta)*np.sin(phi)
+    matrix[2][2] = -np.cos(theta)
 
     #C vector
-    matrix[0][3] = r(frame_times)*np.sin(theta(frame_times))*np.cos(phi(frame_times))
-    matrix[1][3] = r(frame_times)*np.sin(theta(frame_times))*np.sin(phi(frame_times))
-    matrix[2][3] = r(frame_times)*np.cos(theta(frame_times))
+    matrix[0][3] = r*np.sin(theta)*np.cos(phi)
+    matrix[1][3] = r*np.sin(theta)*np.sin(phi)
+    matrix[2][3] = r*np.cos(theta)
 
     #bottom row
     matrix[3][0] = zeros
@@ -64,6 +64,7 @@ def polar_2_extrinsic(fps = 30, duration = 6, coefs = np.array([[1, 0], [np.pi/2
 if __name__ == '__main__':
 
     matrices = polar_2_extrinsic()
+
 
     focal_len_scaled= 0.1
     aspect_ratio= 0.3
