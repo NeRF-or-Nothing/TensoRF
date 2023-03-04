@@ -60,11 +60,11 @@ def render_novel_view(args, logfolder, tensorf_model):
         c2ws = test_dataset.render_path
         os.makedirs(f'{logfolder}/{args.expname}/imgs_path_all', exist_ok=True)
         evaluation_path(test_dataset,tensorf_model, c2ws, renderer, f'{logfolder}/{args.expname}/imgs_path_all/',
-                                N_vis=-1, N_samples=-1, white_bg = white_bg, ndc_ray=ndc_ray,device=device)
+                                N_vis=-1, N_samples=-1, white_bg = white_bg, ndc_ray=ndc_ray,device=device, args.png_mode)
     else:
         os.makedirs(f'{logfolder}/imgs_render_all', exist_ok=True)
         evaluation(test_dataset,tensorf_model, args, renderer, f'{logfolder}/imgs_render_all/',
-                                N_vis=-1, N_samples=-1, white_bg = white_bg, ndc_ray=ndc_ray,device=device)
+                                N_vis=-1, N_samples=-1, white_bg = white_bg, ndc_ray=ndc_ray,device=device, args.png_mode)
 
     # video saved to {logfolder}/{args.expname}/imgs_path_all/video.mp4
     return f'{logfolder}/imgs_path_all/video.mp4'
