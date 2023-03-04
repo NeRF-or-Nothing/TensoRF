@@ -4,7 +4,7 @@ def config_parser(cmd=None):
     parser = configargparse.ArgumentParser()
     
     # Argument to turn off saving .PNG files. Useful for timesaving: 1 = save, 0 = don't save
-    parser.add_argument('-png_mode', type=int, default=1,
+    parser.add_argument('--png_mode', type=int, default=1,
                         help='argument that turns off saving .png files')
 
     parser.add_argument('--config', is_config_file=True,
