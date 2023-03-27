@@ -10,6 +10,7 @@ from renderer import *
 from utils import *
 from torch.utils.tensorboard import SummaryWriter
 from dataLoader import dataset_dict
+from extrinsic_matrix_generator import polar_2_extrinsic
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -283,6 +284,22 @@ def main():
     args = config_parser()
     print(args)
 
+    #Generate extrinsic matrices for render path
+    #TODO: Feed arguments from RabbitMQ
+    matrices = polar_2_extrinsic()
+
+    #Write transform_render.json
+    out = {
+        "vid_width": 800,
+        "vid_height": 800,
+        "intrinsic_matrix": [[0.6911112070083618, 0, 400],
+                        [0, 0.6911112070083618, 400],
+                        [0, 0,  1]],
+        "frames": [{"extrinsic_matrix": matrix.tolist()} for matrix in matrices]
+    }
+
+    with open(args.datadir + "/transforms_render.json", "w") as outfile:
+        json.dump(out, outfile, indent = 4)
 
     if args.render_only:
         if not os.path.exists(args.ckpt):
