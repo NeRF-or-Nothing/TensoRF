@@ -6,19 +6,24 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import matplotlib.animation as animation
 
 def polar_2_extrinsic(fps = 30, duration = 6, coefs = np.array([[1, 0], [np.pi/2, 0], [0, 1]])):
+    #Function the generates extrinsic camera matrices from input parameters specified below:
     #fps: frames per second
     #duration: duration of render in seconds
     #coefs: Matrix A produces translations and has three rows corresponding to r, theta, and phi in polar coordinates. Each column corresponds to the order of the function derivative.
+    #A is arbitrary in length so any path can be specified.
     #All derivatives are normalized relative to duration.
 
+    #Generate normalization coefficients for Taylor series.
     l = coefs.shape[1]
     r_norm = (1/factorial(np.arange(0, l, 1)))*np.power((1/duration), np.arange(0, l, 1))
     rad_norm = 2*np.pi*(1/factorial(np.arange(0, l, 1)))*np.power((1/duration), np.arange(0, l, 1))
     rad_norm[0] = 1
 
+    #Create power series for time
     times = np.full((l, fps*duration), np.linspace(0, duration, fps*duration)).T
     times = np.power(times, np.arange(0, l, 1))
 
+    #create time series for r, theta, and phi
     r = np.sum(r_norm*coefs[0]*times, axis = 1)
     theta = np.sum(rad_norm*coefs[1]*times, axis = 1)
     phi = np.sum(rad_norm*coefs[2]*times, axis = 1)
@@ -62,6 +67,7 @@ def polar_2_extrinsic(fps = 30, duration = 6, coefs = np.array([[1, 0], [np.pi/2
 
 if __name__ == '__main__':
 
+    #Running this file generates a random matrix for A. You can edit this to do whatever you want.
     A = np.random.rand(3, 100)
     A[0][0] *= 10
 
