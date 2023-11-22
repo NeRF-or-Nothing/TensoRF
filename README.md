@@ -142,12 +142,10 @@ We provide two options for training on your own image set:
 ## Citation
 If you find our code or paper helps, please consider citing:
 ```
-@misc{TensoRF,
-      title={TensoRF: Tensorial Radiance Fields},
-      author={Anpei Chen and Zexiang Xu and Andreas Geiger and and Jingyi Yu and Hao Su},
-      year={2022},
-      eprint={2203.09517},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV}
+@INPROCEEDINGS{Chen2022ECCV,
+  author = {Anpei Chen and Zexiang Xu and Andreas Geiger and Jingyi Yu and Hao Su},
+  title = {TensoRF: Tensorial Radiance Fields},
+  booktitle = {European Conference on Computer Vision (ECCV)},
+  year = {2022}
 }
 ```
