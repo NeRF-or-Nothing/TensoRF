@@ -18,7 +18,7 @@ from dataLoader import dataset_dict
 from fileServer  import start_flask
 from multiprocessing import Process
 from urllib.parse import urlparse
-
+from fileServer import to_url
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -49,7 +49,8 @@ def export_mesh(args):
     tensorf.load(ckpt)
 
     alpha,_ = tensorf.getDenseAlpha()
-    convert_sdf_samples_to_ply(alpha.cpu(), f'{args.ckpt[:-3]}.ply',bbox=tensorf.aabb.cpu(), level=0.005)
+    ckpt = args.ckpt[:-3]
+    convert_sdf_samples_to_ply(alpha.cpu(), f'{ckpt}.ply', bbox=tensorf.aabb.cpu(), level=0.005)
 
 
 @torch.no_grad()
@@ -69,11 +70,11 @@ def render_novel_view(args, logfolder, tensorf_model):
         c2ws = test_dataset.render_path
         os.makedirs(f'{logfolder}/{args.expname}/imgs_path_all', exist_ok=True)
         evaluation_path(test_dataset,tensorf_model, c2ws, renderer, f'{logfolder}/{args.expname}/imgs_path_all/',
-                                N_vis=-1, N_samples=-1, white_bg = white_bg, ndc_ray=ndc_ray,device=device, args.png_mode)
+                                N_vis=-1, N_samples=-1, white_bg = white_bg, ndc_ray=ndc_ray,device=device, save_imgs=args.png_mode)
     else:
         os.makedirs(f'{logfolder}/imgs_render_all', exist_ok=True)
         evaluation(test_dataset,tensorf_model, args, renderer, f'{logfolder}/imgs_render_all/',
-                                N_vis=-1, N_samples=-1, white_bg = white_bg, ndc_ray=ndc_ray,device=device, args.png_mode)
+                                N_vis=-1, N_samples=-1, white_bg = white_bg, ndc_ray=ndc_ray,device=device, save_imgs=args.png_mode)
 
     # video saved to {logfolder}/{args.expname}/imgs_path_all/video.mp4
     return f'{logfolder}/imgs_path_all/video.mp4'
@@ -330,7 +331,7 @@ def run_full_nerf_pipeline(args):
 
 def nerf_worker():
     args = config_parser()
-    rabbitmq_domain = "rabbitmq"
+    rabbitmq_domain = "localhost"
     credentials = pika.PlainCredentials('admin', 'password123')
     parameters = pika.ConnectionParameters(rabbitmq_domain, 5672, '/', credentials,heartbeat=300)
 
@@ -359,28 +360,37 @@ def nerf_worker():
             img = requests.get(url)
             url_path = urlparse(fr_['file_path']).path
             filename = url_path.split("/")[-1]
-            file_path =  "data/inputs/workerData" + id 
-            os.makedirs(file_path, exist_ok=True) 
-            file_path += "/" + filename
+            input_dir =  "data/inputs/workerData/" + id 
+            os.makedirs(input_dir, exist_ok=True) 
+            args.datadir = input_dir
+            file_path = os.path.join(input_dir, filename)
             open(file_path,"wb").write(img.content)
 
-            path = os.path.join(os.getcwd(), file_path)
-            nerf_data['frames'][i]["file_path"] = file_path
+            nerf_data['frames'][i]["file_path"] = filename
 
-        with open("transforms_data.json", "w") as f:
-            json.dumps(nerf_data, f)
+        # TODO: remove hardcoding this is to resolve an upstream bug
+        nerf_data["vid_width"] = 200
+        nerf_data["vid_height"] = 152
+        with open(os.path.join(args.datadir,"transforms_train.json"), "w") as f:
+            json.dump(nerf_data, f, ensure_ascii=False, indent=4)
+
+        # TODO: pass in desired render path from web-server. For now defaulting to rendering the same training path
+        with open(os.path.join(args.datadir,"transforms_render.json"), "w") as f:
+            json.dump(nerf_data, f, ensure_ascii=False, indent=4)
 
         # Process received job
         video_file = run_full_nerf_pipeline(args)
         
+        # TODO: to_url mapping is wrong
+        # TODO: Replace Rabbitmq publish with uploading finalized video
         video_url = to_url(video_file)
         nerf_output_data = {"video": video_url}
-
+        print(f"Returning data to webserver: {nerf_output_data}")
         json_nerf_output = json.dumps(nerf_output_data)
         channel.basic_publish(exchange='', routing_key='nerf-out', body=json_nerf_output)
 
         # confirm to rabbitmq job is done
-        ch.basic_ack(delivery_tag=method.delivery_tag)
+        #ch.basic_ack(delivery_tag=method.delivery_tag)
         print("Job complete")
 
 
@@ -397,8 +407,6 @@ def nerf_worker():
 
 if __name__ == '__main__':
     flaskProcess = Process(target=start_flask, args= ())
-    nerfProcess = Process(target=nerf_worker, args= ())
     flaskProcess.start()
-    nerfProcess.start()
+    nerf_worker()
     flaskProcess.join()
-    nerfProcess.join()

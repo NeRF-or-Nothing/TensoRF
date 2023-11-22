@@ -1,10 +1,10 @@
 
-dataset_name = workerData
-datadir = ./data/inputs
+dataset_name = sfm2nerf
+datadir = ./data/inputs/workerData
 expname = out
 basedir = ./data/outputs
 
-n_iters = 30000
+n_iters = 200
 batch_size = 4096
 
 N_voxel_init = 2097156 # 128**3

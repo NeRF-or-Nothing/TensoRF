@@ -7,10 +7,14 @@ import os
 
 app = Flask(__name__)
 base_url = "http://nerf-worker:5100/"
+#TODO: fix this function
+def to_url(file_name):
+    return base_url+"/"+file_name
 
 @app.route('/output/videos/<path:path>')
 def send_video(path):
-    return send_from_directory('output/videos',path)
+    # example path: /data/outputs/out/imgs_path_all/video.mp4
+    return send_from_directory('data',path)
 
 @app.route('/output/models/<path:path>')
 def send_model(path):
