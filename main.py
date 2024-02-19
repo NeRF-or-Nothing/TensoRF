@@ -9,24 +9,32 @@ from multiprocessing import Process, connection
 import os
 
 app = Flask(__name__)
-base_url = "http://localhost:5100/"
+#base_url = "http://localhost:5200/"
+#base_url = "host.docker.internal:5200/"
+base_url = "0.0.0.0:5200/"
 
 def nerf_worker():
     # TODO: Communicate with rabbitmq server on port defined in web-server arguments
     # Also, get rid of plaintext `credentials` and use a config file
     print("Starting nerf_worker!")
-    rabbitmq_domain = "rabbitmq"
+
+    #rabbitmq_domain = "rabbitmq"
+    rabbitmq_domain = "localhost"
     credentials = pika.PlainCredentials('admin', 'password123')
     parameters = pika.ConnectionParameters(
       rabbitmq_domain, 5672, '/', credentials, heartbeat=300
     )
-    
     connection = pika.BlockingConnection(parameters)
     channel = connection.channel()
     channel.queue_declare(queue = 'nerf_in')
     channel.queue_declare(queue = 'nerf_out')
+    print("DEBUG: Connected to RabbitMQ", flush=True)
 
     def process_nerf_worker(ch, method, properties, body):
+
+        job_data = json.loads(body.decode())
+        print(f"DEBUG: Running New Job With ID: {job_data['id']}")
+        print("DEBUG: job_data", job_data, flush=True)
       
         if True:
           print("Starting New Nerf Job!")
@@ -55,13 +63,13 @@ def nerf_worker():
         ch.basic_ack(delivery_tag=method.delivery_tag)
         
     channel.basic_qos(prefetch_count=1)
-    channel.basic_consume(queue='sfm_in', on_message_callback=process_nerf_worker, auto_ack=False)
+    channel.basic_consume(queue='nerf-in', on_message_callback=process_nerf_worker, auto_ack=False)
     channel.start_consuming()
     # Should not get here!
 
 def start_flask():
     global app
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5200, debug=True)
 
 
 if __name__ == "__main__":
