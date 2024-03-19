@@ -9,7 +9,7 @@ from multiprocessing import Process, connection
 import os
 from dataLoader import sfm2nerf
 from opt import config_parser
-from worker import train_tensorf
+from worker import train_tensorf, render_novel_view
 
 app = Flask(__name__)
 #base_url = "http://localhost:5200/"
@@ -69,22 +69,37 @@ def nerf_worker():
 
         jobdir2 = jobdir / f"transforms_train.json"
         jobdir2.write_text(json.dumps(nerf_data, indent=4))
-        args = config_parser("--config configs/localworkerconfig.txt")
+        jobdir3 = jobdir/ f"transforms_render.json"
+        jobdir3.write_text(json.dumps(nerf_data, indent=4))
+        args = config_parser("--config configs/localworkerconfig_testsimon.txt")
         args.datadir += f"/{id}"
         args.expname = id
         print(f"DEBUG: args={args}", flush=True)
         logfolder, tensorf_model = train_tensorf(args)
-        
-        return
+        nerf_video_path = render_novel_view(args, logfolder, tensorf_model)
+        print(f"DEBUG: video_file_path={nerf_video_path}", flush=True)
+        #print(f"DEBUG: tensorf_model={tensorf_model}", flush=True)
+
         #TODO: get nerf video and submit to rabbitmq
-
-
+        
         #create dict for output video and filepath
-        nerf_output_object = {"model_filepath" : nerf_vid_filepath, "rendered_vid" : rendered_vid}
-        channel.basic_publish(exchange='', routing_key='nerf-out', body= nerf_output_object)
+        local_tensorf_model_file_path = f"{logfolder}/{id}.th"
+        req_tensorf_model_file_path = str(f"localhost:5200//{local_tensorf_model_file_path[2::]}")
+        req_video_file_path = str(f"localhost:5200//{nerf_video_path[2::]}")
+        print(f"DEBUG: req_tensorf_model_file_path={req_tensorf_model_file_path}, type={type(req_tensorf_model_file_path)}", flush=True)
+        print(f"DEBUG: req_video_file_path={req_video_file_path}, type={type(req_video_file_path)}", flush=True)
+        
+        nerf_output_object = {
+          "id" : id,
+          "model_filepath" : req_tensorf_model_file_path, 
+          "rendered_video_path" : req_video_file_path
+        }
+        combined_output = json.dumps(nerf_output_object)
+        print(f"DEBUG: nerf_output_object={combined_output}", flush=True)
+        channel.basic_publish(exchange='', routing_key='nerf-out', body= combined_output)
 
         # confirm to rabbitmq job is done
-        ch.basic_ack(delivery_tag=method.delivery_tag)
+        #ch.basic_ack(delivery_tag=method.delivery_tag)
         
     channel.basic_qos(prefetch_count=1)
     channel.basic_consume(queue='nerf-in', on_message_callback=process_nerf_worker, auto_ack=False)
@@ -94,7 +109,7 @@ def nerf_worker():
 
 def start_flask():
     global app
-    app.run(host="0.0.0.0", port=5200, debug=True)
+    app.run(host="0.0.0.0", port=5200, debug=False)
 
 
 if __name__ == "__main__":
